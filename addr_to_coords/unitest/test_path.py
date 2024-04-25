@@ -1,8 +1,9 @@
+import os
 import requests
 import time
 import re
 from addr_to_coords.configure import token
-from addr_to_coords.func.all_addr import addresses
+# from addr_to_coords.func.all_addr import addresses
 
 
 def get_coordinates_from_address(address, token):
@@ -36,23 +37,22 @@ def get_coordinates_from_address(address, token):
 
 
 # 调用示例
-# addresses = [ "基臺中市沙鹿區大同街119之1號1樓"]  # 添加更多地址到這個列表中
+addresses = [ "龍泉五街8號", "基臺中市沙鹿區大同街119之1號1樓"]  # 添加更多地址到這個列表中
 token = token  # 替換為你的 Bearer token
 
 
 requests_per_second = 50
-with open('C:/CodeWareHouse/addr-to-coords/addr_to_coords/output/output.csv', 'w', encoding='utf-8') as f:
+with open('output.csv', 'w', encoding='utf-8') as f:
     f.write('address,lat,lon\n')
-    count = 0
     for address in addresses:
-        count += 1
-        print(count)
-        latitude, longitude = get_coordinates_from_address(address[4], token)
+        latitude, longitude = get_coordinates_from_address(address, token)
         if latitude is not None and longitude is not None:
-            f.write(f'{address[1]}, {address[3]},{address[4]},{latitude},{longitude}\n')
+            f.write(f'{address},{latitude},{longitude}\n')
             print(f"The coordinates for {address} are: Latitude {latitude}, Longitude {longitude}")
         else:
-            f.write(f'{address[4]},,\n')  # 紀錄無法獲取座標的地址
+            f.write(f'{address},,\n')  # 紀錄無法獲取座標的地址
             print("Failed to fetch coordinates.")
         # 控制每秒請求次數
         time.sleep(1 / requests_per_second)
+
+
