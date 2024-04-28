@@ -2,7 +2,8 @@ import requests
 import time
 import re
 from addr_to_coords.configure import token
-from addr_to_coords.func.all_addr import addresses
+# from addr_to_coords.func.all_addr import addresses
+from addr_to_coords.unitest.test_addr import addresses
 
 
 def get_coordinates_from_address(address, token):
@@ -18,21 +19,23 @@ def get_coordinates_from_address(address, token):
         print(data)  # 檢查數據結構
         try:
             match = re.search(r'POINT \(([-+]?\d*\.\d+) ([-+]?\d*\.\d+)\)', data[0]['Geometry'])
+            coords_address = data[0]['Address']
             if match:
                 longitude = float(match.group(1))
                 latitude = float(match.group(2))
                 print("Longitude:", longitude)
                 print("Latitude:", latitude)
-                return latitude, longitude
+                return coords_address, latitude, longitude
             else:
                 print("No match found.")
-                return None, None
+                return None, None, None
         except (IndexError, KeyError):
             print("Error parsing the geometry data.")
-            return None, None
+            return None, None, None
     else:
         print(f"Failed to fetch coordinates for address: {address}")
-        return None, None
+        return None, \
+            None, None
 
 
 # 调用示例
@@ -41,16 +44,17 @@ token = token  # 替換為你的 Bearer token
 
 
 requests_per_second = 50
-with open('C:/CodeWareHouse/addr-to-coords/addr_to_coords/output/output.csv', 'w', encoding='utf-8') as f:
-    f.write('address,lat,lon\n')
+with open('C:/CodeWareHouse/addr-to-coords/addr_to_coords/output/output3.csv', 'w', encoding='utf-8') as f:
+    f.write('company_name, company_subname, raw_address, fixed_address, coords_address,lat,lon\n')
     count = 0
     for address in addresses:
         count += 1
         print(count)
-        latitude, longitude = get_coordinates_from_address(address[4], token)
+        # print(address)
+        coords_address, latitude, longitude = get_coordinates_from_address(address[5], token)
         if latitude is not None and longitude is not None:
-            f.write(f'{address[1]}, {address[3]},{address[4]},{latitude},{longitude}\n')
-            print(f"The coordinates for {address} are: Latitude {latitude}, Longitude {longitude}")
+            f.write(f'{address[1]}, {address[3]},{address[4]},{address[5]}, {coords_address},{latitude},{longitude}\n')
+            print(f"The coordinates for {address[5]} to {coords_address} are: Latitude {latitude}, Longitude {longitude}")
         else:
             f.write(f'{address[4]},,\n')  # 紀錄無法獲取座標的地址
             print("Failed to fetch coordinates.")

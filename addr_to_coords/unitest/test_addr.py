@@ -1,34 +1,12 @@
-# Author : Arleigh Chang
-# date : 2019/09/22 Ver2.0
-
 import requests
 import json
 import pandas as pd
-from tqdm import *
 import re
-import sys
-from datetime import datetime
 import csv
 
 
-
-# class Logger(object):
-#     def __init__(self, fileN="Default.log"):
-#         self.terminal = sys.stdout
-#         self.log = open(fileN, "a")
-#
-#     def write(self, message):
-#         self.terminal.write(message)
-#         self.log.write(message)
-#
-#     def flush(self):
-#         pass
-#
-#
-# sys.stdout = Logger("Log/Log" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".txt")
-
-
 # 讀取Excel，支援csv及xlsx
+# 取出要轉換的地址
 def addresses_from_csv(path):
     addresses = []
     try:
@@ -40,66 +18,7 @@ def addresses_from_csv(path):
     return address
 
 
-# 將網址傳入Google api，藉由google api進行地址補丁
-def get_api(api_key, addresses, address):
-    print('---------------Google Api補丁開始---------------')
-    transformed = []
-    count = 0
-    for query in tqdm(addresses):
-        try:
-            search = query.index('號')
-            query_fix = query[:search + 1]
-            url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query_fix + 'sensor&language=zh-tw&key=' + api_key
-            r = requests.get(url, verify=False)
-            data = r.json()
-            try:
-                if len(query_fix) + 3 - len(data['results'][0]['formatted_address']) > 1:
-                    print('地址:', query, '， 疑似異常，請檢查')
-                    transformed.append(address[count])
-                    count += 1
-                else:
-                    print(data['results'][0]['formatted_address'])
-
-                    transformed.append(data['results'][0]['formatted_address'] + query[search + 1:])
-                    count += 1
-            except:
-                try:
-                    print('於函數get_api中異常錯誤，請檢查無法解析地址:', query)
-                    transformed.append(address[count])
-                    count += 1
-                except UnicodeEncodeError:
-                    print('於函數get_api中異常錯誤，發生UnicodeEncoderError')
-                    transformed.append(address[count])
-                    count += 1
-                    continue
-        except ValueError:
-            url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query + 'sensor&language=zh-tw&key=' + api_key
-            r = requests.get(url, verify=False)
-            data = r.json()
-            try:
-                if len(query) + 3 - len(data['results'][0]['formatted_address']) > 1:
-                    print('地址:', query, '， 疑似異常，請檢查')
-                    transformed.append(address[count])
-                    count += 1
-                else:
-                    print(data['results'][0]['formatted_address'])
-                    transformed.append(data['results'][0]['formatted_address'])
-                    count += 1
-            except:
-                try:
-                    print('於函數get_api中異常錯誤，請檢查無法解析地址:', query)
-                    transformed.append(address[count])
-                    count += 1
-                except UnicodeEncodeError:
-                    print('於函數get_api中異常錯誤，發生UnicodeEncoderError')
-                    transformed.append(address[count])
-                    count += 1
-                    continue
-
-    return transformed, count
-
-
-# 儲存成Excel
+# 輸出
 def storage_excel(original_addresses, fix_addresses):  # , final_addresses
     try:
         print('---------------儲存檔案中--------------')
@@ -152,43 +71,106 @@ def num_to_ch(target_num):
         return target_num
 
 
-def ch_to_num(target_ch):  # 處理地址資料中應該是數字但是是中文字的錯誤格式(中文轉數字)。支援至三位數
-    ch = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
-    num = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
-    if len(target_ch) == 1:
-        final = num[ch.index(target_ch)]
-        return final
-    elif len(target_ch) == 2:
-        if target_ch[0] == '十':
-            final = '1' + num[ch.index(target_ch[-1])]
-            return final
-        else:
-            final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
+# def ch_to_num(target_ch):  # 處理地址資料中應該是數字但是是中文字的錯誤格式(中文轉數字)。支援至三位數
+#     ch = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+#     num = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+#     if len(target_ch) == 1:
+#         final = num[ch.index(target_ch)]
+#         return final
+#     elif len(target_ch) == 2:
+#         if target_ch[0] == '十':
+#             final = '1' + num[ch.index(target_ch[-1])]
+#             return final
+#         else:
+#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
+#
+#     # elif len(target_ch) == 3:
+#     #     if target_ch.find('百') == True or target_ch.find('十') == True:
+#     #         final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
+#     #         return final
+#     #     else:
+#     #         final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[1])] + num[ch.index(target_ch[2])]
+#     #         return final
+#
+#     elif len(target_ch) == 3:
+#         # 檢查是否包含 '百' 或 '十'
+#         if '百' in target_ch:
+#             # 處理如 '二百三' 的情況
+#             if '零' in target_ch:
+#                 # 處理如 '二百零三' 的情況
+#                 final = num[ch.index(target_ch[0])] + '0' + num[ch.index(target_ch[-1])]
+#             else:
+#                 # 處理如 '二百三'，沒有 '零' 的情況
+#                 final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])] + '0'
+#         elif '十' in target_ch:
+#             # 處理如 '一十二' 的情況
+#             if target_ch[0] == '十':
+#                 # 處理 '十二' 這類情況，需要特別在前面加 '1'
+#                 final = '1' + num[ch.index(target_ch[-1])]
+#             else:
+#                 # 處理如 '二十三'
+#                 final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
+#         else:
+#             # 如果沒有 '百' 或 '十'，但是長度為3，可能為錯誤輸入或需要特殊處理
+#             final = ''.join([num[ch.index(c)] for c in target_ch if c in ch])
+#         return final
+#
+#     elif len(target_ch) == 4:
+#         if target_ch[0] == '兩' or target_ch[0] == '二':
+#             final = '2' + num[ch.index(target_ch[2])] + '0'
+#             return final
+#         else:
+#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + '0'
+#             return final
+#     elif len(target_ch) == 5:
+#         if target_ch[0] == '兩' or target_ch[0] == '二':
+#             final = '2' + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
+#             return final
+#         else:
+#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
+#             return final
+#     else:
+#         return target_ch
 
-    elif len(target_ch) == 3:
-        if target_ch.find('百') == True or target_ch.find('十') == True:
-            final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
-            return final
-        else:
-            final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[1])] + num[ch.index(target_ch[2])]
-            return final
+def ch_to_num(target_ch):
+    # 對應中文數字到阿拉伯數字的映射
+    ch = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九',]
+    num = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ]
 
-    elif len(target_ch) == 4:
-        if target_ch[0] == '兩' or target_ch[0] == '二':
-            final = '2' + num[ch.index(target_ch[2])] + '0'
-            return final
-        else:
-            final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + '0'
-            return final
-    elif len(target_ch) == 5:
-        if target_ch[0] == '兩' or target_ch[0] == '二':
-            final = '2' + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
-            return final
-        else:
-            final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
-            return final
-    else:
-        return target_ch
+    final = ''
+    i = 0
+    while i < len(target_ch):
+        if target_ch[i].isdigit():
+            # 直接添加阿拉伯數字
+            final += target_ch[i]
+        elif target_ch[i] in ch:
+            # 添加映射的阿拉伯數字
+            final += num[ch.index(target_ch[i])]
+        elif target_ch[i] == '十':
+            if i == 0 or not target_ch[i - 1] in ch:
+                # 如果 '十' 是第一個字符或前一個字符不是中文數字
+                if i + 1 < len(target_ch) and target_ch[i + 1] in ch:
+                    # 如果 '十' 後面跟著一個中文數字
+                    final += '1'
+                else:
+                    # 如果 '十' 是單獨的
+                    final += '10'
+            else:
+                # 如果 '十' 前面是一個中文數字
+                if i + 1 == len(target_ch) or not target_ch[i + 1] in ch:
+                    # 如果 '十' 是最後一個字符或後一個字符不是中文數字
+                    final += '0'
+        elif target_ch[i] == '百':
+            final += '00' if i + 1 == len(target_ch) or not target_ch[i + 1] in ch else '0'
+        elif target_ch[i] == '千':
+            final += '000' if i + 1 == len(target_ch) or not target_ch[i + 1] in ch else '00'
+        i += 1
+
+    return final
+
+
+
+
 
 
 # 運用正則表達式搜索錯誤格式的地址，並且運用上方轉換工具轉換成正確格式
@@ -199,6 +181,7 @@ def deal_address(address, error_code):
         i = strQ2B(i)
         i = i.replace(' ', '')
         i = i.replace("-", "之")
+        i = i.replace("－", "之")
 
         regex0 = re.compile(r'\d')
         regex0_0 = re.compile(r'[\u4e00-\u9fa5]')
@@ -214,7 +197,9 @@ def deal_address(address, error_code):
         # regex7 = re.compile(r'(?<!地|下)([\u4e00-\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)樓')
 
         regex8 = re.compile(r'\d+段')
-        # regex9 = re.compile(r'(?<!下)([\u4e00-\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)之')
+        regex9 = re.compile(r'[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+、')
+        regex10 = re.compile(r'[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+之')
+        # regex9 = re.compile(r'([\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e0-9]+)之')
 
         try:
             if regex0.search(i[0:3]) != None and error_code == 0 and regex0_0.search(i[0:3]) == None:
@@ -272,6 +257,15 @@ def deal_address(address, error_code):
 
                 print('修正地址 :', i, '| 修正部位:', regex8.search(i).group())
 
+            elif regex9.search(i) != None and error_code == 13:
+                after_deal.append(re.sub(regex9.search(i).group()[:-1], ch_to_num(regex9.search(i).group()[:-1]), i, 1))
+
+                print('修正地址 :', i, '| 修正部位:', regex9.search(i).group())
+
+            elif regex10.search(i) != None and error_code == 14:
+                after_deal.append(re.sub(regex10.search(i).group()[:-1], ch_to_num(regex10.search(i).group()[:-1]), i, 1))
+
+                print('修正地址 :', i, '| 修正部位:', regex10.search(i).group())
 
             else:
                 after_deal.append(i)
@@ -285,28 +279,69 @@ def deal_address(address, error_code):
     return after_deal, error_code
 
 
-address = addresses_from_csv(path='test2.xlsx') # 產出一個裝地址的清單
-print(address)
+file = 'C:/CodeWareHouse/tdx-map-coordinate/tdx_map_coordinate/raw_data/全國5大超商資料集.csv'
+with open(file, encoding="utf-8") as csvFile:  # with open()只在函式內部讀取，離開函式會關檔
+    csvReader = csv.reader(csvFile)
+    datas = list(csvReader)
+
+raw_datas = datas[1:]
+
+address = []
+for row in raw_datas:
+    address.append(row[4])
+
 c = 0
 error_code = 0
 for i in range(0, 15):
     if c == 0:
-        addresses, error_code = deal_address(address, error_code)
+        fixed_addresses, error_code = deal_address(address, error_code)
         c += 1
     elif c != 0 and error_code != 0:
-        addresses, error_code = deal_address(addresses, error_code)
+        fixed_addresses, error_code = deal_address(fixed_addresses, error_code)
         c += 1
     else:
         break
 
-storage_excel(address, addresses)  # , transformed
+# print(addresses)
+# storage_excel(address, fixed_addresses)  # , transformed
+
+def add_fixed_addresses(raw_datas, fixed_addresses):
+    # 确保每行数据都添加新地址
+    for index, row in enumerate(raw_datas):
+        if index < len(fixed_addresses):  # 防止索引超出范围
+            row.insert(5, fixed_addresses[index])  # 在原始地址（索引4）之后插入修正后的地址
+
+def save_to_csv(raw_datas, file_name='updated_data.csv'):
+    # 根据您的列信息更新列名列表
+    column_names = [
+        "公司统一编号", "公司名称", "分公司统一编号", "分公司名称",
+        "原分公司地址", "修正后的地址", "分公司状态", "分公司核准设立日期", "分公司最后核准变更日期"
+    ]
+    # 将数据转换为 DataFrame
+    df = pd.DataFrame(raw_datas, columns=column_names)
+    df.to_csv("test_output.csv", index=False)
+    # print(f"Data saved to {file_name}")
+
+# 示例使用
+# 假设 raw_datas 已经被加载
+# fixed_addresses 是修正后的地址列表
+add_fixed_addresses(raw_datas, fixed_addresses)
+save_to_csv(raw_datas)
+
+addresses = raw_datas
 
 
 
-# api_key = 'Yourkey'
+# with open('C:/CodeWareHouse/addr-to-coords/addr_to_coords/unitest/test_addr_output.csv', 'w', encoding='utf-8') as f:
+#     # f.write('address, fixed_address\n')
+# test = []
+# for d in raw_datas:
+#     test.append(d[4])
+#     for j in addresses:
+#         test.append(j)
 #
-# transformed, error = get_api(api_key, addresses, address)
+# print(test)
 
 
 
-print('done')
+
