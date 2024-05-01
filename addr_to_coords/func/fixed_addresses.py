@@ -1,57 +1,36 @@
-import requests
-import json
-import pandas as pd
 import re
 import csv
+import pandas as pd
+import cn2an
 
 
-# 讀取Excel，支援csv及xlsx
-# 取出要轉換的地址
-def addresses_from_csv(path):
-    addresses = []
-    try:
-        x = pd.read_excel(path)
-        address = x['address'].tolist()
-    except:
-        x = pd.read_csv(path)
-        address = x['address'].tolist()
-    return address
-
-
-# 輸出
-def storage_excel(original_addresses, fix_addresses):  # , final_addresses
-    try:
-        print('---------------儲存檔案中--------------')
-        storage = pd.DataFrame()  # postcode?
-        storage['original_addresses'] = original_addresses
-        storage['fix_addresses'] = fix_addresses
-        # storage['final_addresses'] = final_addresses
-        storage.to_csv('transformed_addr.csv', index=False, )
-    except:
-        print('於函數storage_excel中異常錯誤，請檢查')
-
-
-# 全形轉半形，此處使用 : https://www.jianshu.com/p/a5d96457c4a4
+# 全形轉半形
+# 此處使用 : https://www.jianshu.com/p/a5d96457c4a4
+# note：ss = []是包在def中，每重新啟動一次strQ2B時ss = []會被清空；rstring = ''也是同理
 def strQ2B(ustring):
     ss = []
     for s in str(ustring):
         rstring = ""
         for uchar in s:
-            inside_code = ord(uchar)
-            if inside_code == 12288:
-                inside_code = 32
-            elif (inside_code >= 65281 and inside_code <= 65374):
+            inside_code = ord(uchar)  # 取得字串unicode編號
+            if inside_code == 12288:  # 全形空格
+                inside_code = 32  # 半形空格
+            elif (inside_code >= 65281 and inside_code <= 65374):  # 全形字串的unicode編碼範圍
                 inside_code -= 65248
             rstring += chr(inside_code)
         ss.append(rstring)
-    return ''.join(ss)
+    return ''.join(ss)  # 把清單的單一字符合併成完整字串
 
 
 # 處理地址資料中應該是中文但是是數字的錯誤格式(數字轉中文)。支援至兩位數
+# 在處理地址的過程中，數字轉中文數字多數會出現在"段"前，基本上兩位數是可以覆蓋多數情況，但如果是在"巷"、"弄"前的中文數字就有可能會到三位
+# 改寫為可以處理到三位數以上
 def num_to_ch(target_num):
     num = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     ch = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']
     if len(target_num) == 1:
+        # 傳入的tar_num如果僅有一個時，則先傳入num.index找出位置，再傳入ch列表找出對應值
+        # 用字典改寫
         final = ch[num.index(target_num)]
         return final
     elif len(target_num) == 2:
@@ -71,67 +50,7 @@ def num_to_ch(target_num):
         return target_num
 
 
-# def ch_to_num(target_ch):  # 處理地址資料中應該是數字但是是中文字的錯誤格式(中文轉數字)。支援至三位數
-#     ch = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
-#     num = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
-#     if len(target_ch) == 1:
-#         final = num[ch.index(target_ch)]
-#         return final
-#     elif len(target_ch) == 2:
-#         if target_ch[0] == '十':
-#             final = '1' + num[ch.index(target_ch[-1])]
-#             return final
-#         else:
-#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
-#
-#     # elif len(target_ch) == 3:
-#     #     if target_ch.find('百') == True or target_ch.find('十') == True:
-#     #         final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
-#     #         return final
-#     #     else:
-#     #         final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[1])] + num[ch.index(target_ch[2])]
-#     #         return final
-#
-#     elif len(target_ch) == 3:
-#         # 檢查是否包含 '百' 或 '十'
-#         if '百' in target_ch:
-#             # 處理如 '二百三' 的情況
-#             if '零' in target_ch:
-#                 # 處理如 '二百零三' 的情況
-#                 final = num[ch.index(target_ch[0])] + '0' + num[ch.index(target_ch[-1])]
-#             else:
-#                 # 處理如 '二百三'，沒有 '零' 的情況
-#                 final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])] + '0'
-#         elif '十' in target_ch:
-#             # 處理如 '一十二' 的情況
-#             if target_ch[0] == '十':
-#                 # 處理 '十二' 這類情況，需要特別在前面加 '1'
-#                 final = '1' + num[ch.index(target_ch[-1])]
-#             else:
-#                 # 處理如 '二十三'
-#                 final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[-1])]
-#         else:
-#             # 如果沒有 '百' 或 '十'，但是長度為3，可能為錯誤輸入或需要特殊處理
-#             final = ''.join([num[ch.index(c)] for c in target_ch if c in ch])
-#         return final
-#
-#     elif len(target_ch) == 4:
-#         if target_ch[0] == '兩' or target_ch[0] == '二':
-#             final = '2' + num[ch.index(target_ch[2])] + '0'
-#             return final
-#         else:
-#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + '0'
-#             return final
-#     elif len(target_ch) == 5:
-#         if target_ch[0] == '兩' or target_ch[0] == '二':
-#             final = '2' + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
-#             return final
-#         else:
-#             final = num[ch.index(target_ch[0])] + num[ch.index(target_ch[2])] + num[ch.index(target_ch[-1])]
-#             return final
-#     else:
-#         return target_ch
-
+# 中文數字轉阿拉伯數字
 def ch_to_num(target_ch):
     # 對應中文數字到阿拉伯數字的映射
     ch = ['０', '一', '二', '三', '四', '五', '六', '七', '八', '九',]
@@ -167,10 +86,6 @@ def ch_to_num(target_ch):
         i += 1
 
     return final
-
-
-
-
 
 
 # 運用正則表達式搜索錯誤格式的地址，並且運用上方轉換工具轉換成正確格式
@@ -302,67 +217,7 @@ def deal_address(address, error_code):
     return after_deal, error_code
 
 
-file = 'C:/CodeWareHouse/tdx-map-coordinate/tdx_map_coordinate/raw_data/全國5大超商資料集.csv'
-with open(file, encoding="utf-8") as csvFile:  # with open()只在函式內部讀取，離開函式會關檔
-    csvReader = csv.reader(csvFile)
-    datas = list(csvReader)
-
-raw_datas = datas[1:]
-
-address = []
-for row in raw_datas:
-    address.append(row[4])
-
-c = 0
-error_code = 0
-for i in range(0, 18):
-    if c == 0:
-        fixed_addresses, error_code = deal_address(address, error_code)
-        c += 1
-    elif c != 0 and error_code != 0:
-        fixed_addresses, error_code = deal_address(fixed_addresses, error_code)
-        c += 1
-    else:
-        break
-
-# print(addresses)
-# storage_excel(address, fixed_addresses)  # , transformed
-
-
-# def split_address(address_list):
-#     fixed_address_list = []
-#     for address in address_list:
-#         # 检查地址中是否包含需要分割的模式
-#         if '、' in address and re.search(r'\d+之?\d*\w*、', address):  #\d+之?\d*號
-#             # 分割保留“之”和“號”的部分
-#             parts = re.split(r'(\d+之?\d*\w*、)', address)  # \d+之?\d*號
-#             if len(parts) > 2:  # 确保有足够的部分来解包
-#                 base_address = parts[0]
-#                 numbers_floor = parts[1] + parts[2]
-#             else:
-#                 # 处理未找到预期模式的情况
-#                 fixed_address_list.append({"address1": address})
-#                 continue
-#
-#             # 搜索数字和楼层
-#             match = re.search(r'(\d+之?\d*、\d+之?\d*號)(\d+樓)?', numbers_floor)
-#             if match:
-#                 numbers, floor = match.groups()
-#                 floor = floor if floor else ''
-#                 individual_numbers = numbers.split('、')
-#                 address_dict = {
-#                     "address1": f'{base_address}{individual_numbers[0]}號{floor}',
-#                     "address2": f'{base_address}{individual_numbers[1]}{floor}'
-#                 }
-#                 fixed_address_list.append(address_dict)
-#             else:
-#                 # 处理预期模式未找到的情况
-#                 fixed_address_list.append({"address1": address})
-#         else:
-#             # 地址不需要分割
-#             fixed_address_list.append({"address1": address})
-#     return fixed_address_list
-
+# 拆分多個地址
 def split_address(address_list):
     fixed_address_list = []
     for address in address_list:
@@ -383,6 +238,8 @@ def split_address(address_list):
             fixed_address_list.append({"address1": first_part})
     return fixed_address_list
 
+
+# 修正後地址合併至原始資料中
 def add_fixed_addresses(raw_datas, fixed_addresses):
     column_names = [
         "公司统一编号", "公司名称", "分公司统一编号", "分公司名称",
@@ -408,102 +265,38 @@ def add_fixed_addresses(raw_datas, fixed_addresses):
     df = pd.DataFrame(raw_datas, columns=column_names)
 
     # 保存到 CSV 文件
-    file_name = 'updated_data5.csv'
+    file_name = 'C:/CodeWareHouse/addr-to-coords/addr_to_coords/output/fixed_addr/fixed_addr_output.csv'
     df.to_csv(file_name, index=False)
     print(f"Data saved to {file_name}")
 
     return raw_datas
 
 
+file = 'C:/CodeWareHouse/tdx-map-coordinate/tdx_map_coordinate/raw_data/全國5大超商資料集.csv'
+with open(file, encoding="utf-8") as csvFile:  # with open()只在函式內部讀取，離開函式會關檔
+    csvReader = csv.reader(csvFile)
+    datas = list(csvReader)
 
 
-# def add_fixed_addresses(raw_datas, fixed_addresses):
-#     # 確保每行數據都添加新地址
-#     for index, row in enumerate(raw_datas):
-#         if index < len(fixed_addresses):  # 防止索引超出範圍
-#             # 取得要添加的地址列表，並檢查是否有足夠的元素
-#             addresses_to_add = fixed_addresses[index].get("address1", ""), fixed_addresses[index].get("address2", "")
-#             # 在原始地址（索引4）之後插入修正後的地址
-#             row.insert(5, addresses_to_add[0])  # 插入第一個地址
-#             if addresses_to_add[1]:  # 只有當第二個地址存在時才插入
-#                 row.insert(6, addresses_to_add[1])
-#     return raw_datas
+raw_datas = datas[1:]
 
-# def add_fixed_addresses(raw_datas, fixed_addresses):
-#     # 确保每行数据都添加新地址
-#     for index, row in enumerate(raw_datas):
-#         if index < len(fixed_addresses):  # 防止索引超出范围
-#             # 这里处理可能有多个地址的情况
-#             addresses_to_add = [fixed_addresses[index].get("address1", ""),
-#                                 fixed_addresses[index].get("address2", "")]
-#             row.insert(5, addresses_to_add)  # 在原始地址（索引4）之后插入修正后的地址
+address = []
+for row in raw_datas:
+    address.append(row[4])
 
-# def add_fixed_addresses(raw_datas, fixed_addresses):
-#     # 确保每行数据都添加新地址
-#     for index, row in enumerate(raw_datas):
-#         if index < len(fixed_addresses):  # 防止索引超出范围
-#             row.insert(5, fixed_addresses[index])  # 在原始地址（索引4）之后插入修正后的地址
-
-
-# def save_to_csv(raw_datas, file_name='updated_data.csv'):
-#     # 根据您的列信息更新列名列表
-#     column_names = [
-#         "公司统一编号", "公司名称", "分公司统一编号", "分公司名称",
-#         "原分公司地址", "修正后的地址", "修正后的地址2", "分公司状态", "分公司核准设立日期", "分公司最后核准变更日期"
-#     ]
-#     # 将数据转换为 DataFrame
-#     df = pd.DataFrame(raw_datas,  columns=column_names)  #,
-#     df.to_csv(file_name, index=False)
-#     # print(f"Data saved to {file_name}")
-
-
-# def save_to_csv(raw_datas, file_name='updated_data4.csv'):
-#     # 根据您的列信息更新列名列表
-#     column_names = [
-#         "公司统一编号", "公司名称", "分公司统一编号", "分公司名称",
-#         "原分公司地址", "修正后的地址1", "修正后的地址2", "分公司状态", "分公司核准设立日期", "分公司最后核准变更日期"
-#     ]
-#
-#     # 檢查每個子列表的長度，確保其符合列名數量
-#     max_columns = len(column_names)
-#     for i in range(len(raw_datas)):
-#         while len(raw_datas[i]) < max_columns:
-#             raw_datas[i].append('')  # 如果數據列數少於列名數量，添加空字符串以匹配
-#
-#     # 将数据转换为 DataFrame
-#     df = pd.DataFrame(raw_datas, columns=column_names)
-#
-#     # 保存 DataFrame 到 CSV 文件
-#     df.to_csv(file_name, index=False)
-#
-#     # 打印信息确认文件保存
-#     print(f"Data saved to {file_name}")
+c = 0
+error_code = 0
+for i in range(0, 18):
+    if c == 0:
+        fixed_addresses, error_code = deal_address(address, error_code)
+        c += 1
+    elif c != 0 and error_code != 0:
+        fixed_addresses, error_code = deal_address(fixed_addresses, error_code)
+        c += 1
+    else:
+        break
 
 
 fixed_address_list = split_address(fixed_addresses)
-# print(fixed_addresses)
-# raw_datas 已经被加载
-# fixed_addresses 是修正后的地址列表
 add_fixed_addresses(raw_datas, fixed_address_list)
-
-# save_to_csv(a)
-# #
 addresses = raw_datas
-print(addresses)
-#
-# # print(fixed_addresses)
-# print(addresses)
-
-# with open('C:/CodeWareHouse/addr-to-coords/addr_to_coords/unitest/test_addr_output.csv', 'w', encoding='utf-8') as f:
-#     # f.write('address, fixed_address\n')
-# test = []
-# for d in raw_datas:
-#     test.append(d[4])
-#     for j in addresses:
-#         test.append(j)
-#
-# print(test)
-
-
-
-
